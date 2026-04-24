@@ -2,7 +2,7 @@ import { R2Explorer } from "r2-explorer";
 
 export default R2Explorer({
 	// Set to false to allow users to upload files
-	readonly: true, basicAuth: [{
+	readonly: false, basicAuth: [{
     username: 'Joe',
     password: '12datass'
   },{
