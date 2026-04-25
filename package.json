@@ -28,6 +28,6 @@
 		"cf-typegen": "wrangler types",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
-		"postinstall": "npm exec patch-package --reverse --no-error-on-fail 2>/dev/null; npm exec patch-package 2>/dev/null || true"
+		"postinstall": "node scripts/apply-mobile-download-fix.js"
 	}
 }
