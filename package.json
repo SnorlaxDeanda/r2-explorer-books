@@ -19,6 +19,7 @@
 		"r2-explorer": "1.1.10"
 	},
 	"devDependencies": {
+		"patch-package": "^8.0.1",
 		"typescript": "5.9.3",
 		"wrangler": "^4.84.1"
 	},
@@ -26,6 +27,7 @@
 	"scripts": {
 		"cf-typegen": "wrangler types",
 		"deploy": "wrangler deploy",
-		"dev": "wrangler dev"
+		"dev": "wrangler dev",
+		"postinstall": "npm exec patch-package --reverse --no-error-on-fail 2>/dev/null; npm exec patch-package 2>/dev/null || true"
 	}
 }
