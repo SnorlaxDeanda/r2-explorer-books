@@ -4,7 +4,7 @@
 Downloads can be saved as `.html` on iOS/Android devices when the mobile browser follows the app route instead of treating the response as a file download.
 
 ## Solution
-Downloads navigate directly to a dedicated `/api/download/.../<filename>` URL, plus Worker response headers that force the object response to be saved as an attachment.
+Downloads navigate to the existing R2 Explorer object API with `?download=true`, plus Worker response headers that force the object response to be saved as an attachment.
 
 ## Changes Made
 
@@ -16,7 +16,7 @@ Downloads navigate directly to a dedicated `/api/download/.../<filename>` URL, p
 ### Implementation
 For both file downloads and email attachments:
 ```javascript
-window.location.href = `/api/download/${bucket}/${encodeURIComponent(encodedKey)}/${encodeURIComponent(filename)}`;
+window.location.href = `${downloadUrl}?download=true`;
 ```
 
 ## Notes
