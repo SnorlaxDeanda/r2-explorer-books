@@ -175,7 +175,9 @@ function parseBucketObjectDownloadRequest(
 		return undefined;
 	}
 
-	const bucketObject = parseBucketObjectDownloadPath(url.pathname);
+	const bucketObject = parseBucketObjectDownloadPath(url.pathname, {
+		allowFileNameSuffix: true,
+	});
 
 	if (!bucketObject) {
 		return undefined;
@@ -190,6 +192,7 @@ function parseBucketObjectDownloadRequest(
 
 function parseBucketObjectDownloadPath(
 	pathname: string,
+	options: { allowFileNameSuffix?: boolean } = {},
 ): { bucket: string; encodedKey: string; key: string; fileName: string } | undefined {
 	const parts = pathname.split("/").filter(Boolean);
 
@@ -198,17 +201,29 @@ function parseBucketObjectDownloadPath(
 	}
 
 	const bucket = parts[2];
-	const hasFileNameSuffix = parts.length > 4;
+	const lastPart = parts[parts.length - 1];
+	const hasFileNameSuffix =
+		options.allowFileNameSuffix === true && isLikelyDownloadFileName(lastPart);
 	const encodedKey = hasFileNameSuffix
 		? parts.slice(3, -1).join("/")
 		: parts.slice(3).join("/");
-	const encodedFileName = hasFileNameSuffix ? parts[parts.length - 1] : undefined;
+	const encodedFileName = hasFileNameSuffix ? lastPart : undefined;
 	const key = decodeR2ExplorerKey(encodedKey);
 	const fileName = encodedFileName
 		? safeDecodeURIComponent(encodedFileName)
 		: key.split("/").filter(Boolean).pop();
 
 	return { bucket, encodedKey, key, fileName: fileName || "download" };
+}
+
+function isLikelyDownloadFileName(value: string | undefined): boolean {
+	if (!value) {
+		return false;
+	}
+
+	const decoded = safeDecodeURIComponent(value);
+
+	return /\.[A-Za-z0-9]{1,12}$/.test(decoded);
 }
 
 function decodeR2ExplorerKey(key: string): string {
