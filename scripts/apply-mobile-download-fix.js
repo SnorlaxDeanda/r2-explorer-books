@@ -20,8 +20,11 @@ const filesToPatch = [
 // Original pattern: downloadAtt function
 const originalDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=document.createElement("a");t.download=e.filename,t.href=e.downloadUrl,document.body.appendChild(t),t.click(),document.body.removeChild(t)}';
 
-// Fixed pattern: mobile browsers are most reliable when navigating directly.
-const fixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const r=new URL(t,window.location.href),o=r.pathname.match(/^\\/api\\/buckets\\/([^/]+)\\/(.+)$/);if(o){window.location.href=`/api/download/${o[1]}/${encodeURIComponent(o[2])}/${encodeURIComponent(e.filename)}`;return}window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
+// Fixed pattern: always use the Worker download endpoint, including Safari desktop mode.
+const fixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl,r=new URL(t,window.location.href),o=r.pathname.match(/^\\/api\\/buckets\\/([^/]+)\\/(.+)$/);if(o){window.location.href=`/api/download/${o[1]}/${encodeURIComponent(o[2])}/${encodeURIComponent(e.filename)}`;return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
+
+// Previous direct-endpoint fix still depended on mobile user agent detection.
+const directDownloadAttWithUserAgentCheck = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const r=new URL(t,window.location.href),o=r.pathname.match(/^\\/api\\/buckets\\/([^/]+)\\/(.+)$/);if(o){window.location.href=`/api/download/${o[1]}/${encodeURIComponent(o[2])}/${encodeURIComponent(e.filename)}`;return}window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
 
 // Previous direct-endpoint fix did not encode the key as one path segment.
 const directDownloadAttWithUnescapedKey = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const r=new URL(t,window.location.href),o=r.pathname.match(/^\\/api\\/buckets\\/([^/]+)\\/([^/]+)/);if(o){window.location.href=`/api/download/${o[1]}/${o[2]}/${encodeURIComponent(e.filename)}`;return}window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
@@ -38,8 +41,11 @@ const legacyFixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloa
 // Original pattern: downloadObject function
 const originalDownloadObject = 'downloadObject:function(){const u=document.createElement("a");u.download=this.prop.row.name,u.href=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`,document.body.appendChild(u),u.click(),document.body.removeChild(u)}';
 
-// Fixed pattern: mobile browsers are most reliable when navigating directly.
-const fixedDownloadObject = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=`${this.mainStore.serverUrl}/api/download/${this.selectedBucket}/${encodeURIComponent(encode(this.prop.row.key))}/${encodeURIComponent(this.prop.row.name)}`;return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
+// Fixed pattern: always use the Worker download endpoint, including Safari desktop mode.
+const fixedDownloadObject = 'downloadObject:function(){window.location.href=`${this.mainStore.serverUrl}/api/download/${this.selectedBucket}/${encodeURIComponent(encode(this.prop.row.key))}/${encodeURIComponent(this.prop.row.name)}`}';
+
+// Previous direct-endpoint fix still depended on mobile user agent detection.
+const directDownloadObjectWithUserAgentCheck = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=`${this.mainStore.serverUrl}/api/download/${this.selectedBucket}/${encodeURIComponent(encode(this.prop.row.key))}/${encodeURIComponent(this.prop.row.name)}`;return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
 
 // Previous direct-endpoint fix did not encode the key as one path segment.
 const directDownloadObjectWithUnescapedKey = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=`${this.mainStore.serverUrl}/api/download/${this.selectedBucket}/${encode(this.prop.row.key)}/${encodeURIComponent(this.prop.row.name)}`;return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
@@ -76,6 +82,11 @@ filesToPatch.forEach(filePath => {
       patched = true;
       patchCount++;
       console.log(`✅ Patched downloadAtt in ${path.basename(filePath)}`);
+    } else if (content.includes(directDownloadAttWithUserAgentCheck)) {
+      content = content.replace(directDownloadAttWithUserAgentCheck, fixedDownloadAtt);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadAtt in ${path.basename(filePath)}`);
     } else if (content.includes(directDownloadAttWithUnescapedKey)) {
       content = content.replace(directDownloadAttWithUnescapedKey, fixedDownloadAtt);
       patched = true;
@@ -101,6 +112,11 @@ filesToPatch.forEach(filePath => {
       console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);
     } else if (content.includes(directDownloadObjectWithoutFileName)) {
       content = content.replace(directDownloadObjectWithoutFileName, fixedDownloadObject);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);
+    } else if (content.includes(directDownloadObjectWithUserAgentCheck)) {
+      content = content.replace(directDownloadObjectWithUserAgentCheck, fixedDownloadObject);
       patched = true;
       patchCount++;
       console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);
