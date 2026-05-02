@@ -49,7 +49,7 @@ async function handleDirectDownload(
 	}
 
 	const url = new URL(request.url);
-	const downloadRequest = parseDirectDownloadPath(url.pathname);
+	const downloadRequest = parseDownloadRequest(url);
 
 	if (!downloadRequest) {
 		return undefined;
@@ -64,9 +64,7 @@ async function handleDirectDownload(
 		});
 	}
 
-	const bucket = (env as unknown as Record<string, R2Bucket | undefined>)[
-		downloadRequest.bucket
-	];
+	const bucket = getR2Bucket(env, downloadRequest.bucket);
 
 	if (!bucket) {
 		return Response.json(
@@ -143,42 +141,78 @@ function withMobileDownloadHeaders(request: Request, response: Response): Respon
 	});
 }
 
+function parseDownloadRequest(
+	url: URL,
+): { bucket: string; key: string; fileName: string } | undefined {
+	return (
+		parseDirectDownloadPath(url.pathname) ??
+		parseBucketObjectDownloadRequest(url)
+	);
+}
+
 function parseDirectDownloadPath(
 	pathname: string,
 ): { bucket: string; key: string; fileName: string } | undefined {
-	const match = pathname.match(/^\/api\/download\/([^/]+)\/([^/]+)\/([^/]+)$/);
+	const parts = pathname.split("/").filter(Boolean);
 
-	if (!match) {
+	if (parts[0] !== "api" || parts[1] !== "download" || parts.length < 5) {
 		return undefined;
 	}
 
-	const [, bucket, encodedKey, encodedFileName] = match;
+	const bucket = parts[2];
+	const encodedKey = parts.slice(3, -1).join("/");
+	const encodedFileName = parts[parts.length - 1];
 	const key = decodeR2ExplorerKey(encodedKey);
 	const fileName = safeDecodeURIComponent(encodedFileName);
 
 	return { bucket, key, fileName: fileName || "download" };
 }
 
-function parseBucketObjectDownloadPath(
-	pathname: string,
-): { bucket: string; encodedKey: string; fileName: string } | undefined {
-	const match = pathname.match(/^\/api\/buckets\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/);
-
-	if (!match) {
+function parseBucketObjectDownloadRequest(
+	url: URL,
+): { bucket: string; key: string; fileName: string } | undefined {
+	if (url.searchParams.get("download") !== "true") {
 		return undefined;
 	}
 
-	const [, bucket, encodedKey, encodedFileName] = match;
+	const bucketObject = parseBucketObjectDownloadPath(url.pathname);
+
+	if (!bucketObject) {
+		return undefined;
+	}
+
+	return {
+		bucket: bucketObject.bucket,
+		key: bucketObject.key,
+		fileName: bucketObject.fileName,
+	};
+}
+
+function parseBucketObjectDownloadPath(
+	pathname: string,
+): { bucket: string; encodedKey: string; key: string; fileName: string } | undefined {
+	const parts = pathname.split("/").filter(Boolean);
+
+	if (parts[0] !== "api" || parts[1] !== "buckets" || parts.length < 4) {
+		return undefined;
+	}
+
+	const bucket = parts[2];
+	const hasFileNameSuffix = parts.length > 4;
+	const encodedKey = hasFileNameSuffix
+		? parts.slice(3, -1).join("/")
+		: parts.slice(3).join("/");
+	const encodedFileName = hasFileNameSuffix ? parts[parts.length - 1] : undefined;
 	const key = decodeR2ExplorerKey(encodedKey);
 	const fileName = encodedFileName
 		? safeDecodeURIComponent(encodedFileName)
 		: key.split("/").filter(Boolean).pop();
 
-	return { bucket, encodedKey, fileName: fileName || "download" };
+	return { bucket, encodedKey, key, fileName: fileName || "download" };
 }
 
 function decodeR2ExplorerKey(key: string): string {
-	const decodedKey = safeDecodeURIComponent(key);
+	const decodedKey = safeDecodeURIComponentRepeatedly(key);
 
 	try {
 		return decodeURIComponent(escape(atob(decodedKey)));
@@ -187,12 +221,34 @@ function decodeR2ExplorerKey(key: string): string {
 	}
 }
 
+function safeDecodeURIComponentRepeatedly(value: string): string {
+	let decoded = value;
+
+	for (let i = 0; i < 3; i++) {
+		const next = safeDecodeURIComponent(decoded);
+
+		if (next === decoded) {
+			return decoded;
+		}
+
+		decoded = next;
+	}
+
+	return decoded;
+}
+
 function safeDecodeURIComponent(value: string): string {
 	try {
 		return decodeURIComponent(value);
 	} catch {
 		return value;
 	}
+}
+
+function getR2Bucket(env: Env, bucketName: string): R2Bucket | undefined {
+	const bindings = env as unknown as Record<string, R2Bucket | undefined>;
+
+	return bindings[bucketName] ?? bindings.bucket;
 }
 
 function isAuthorized(request: Request): boolean {

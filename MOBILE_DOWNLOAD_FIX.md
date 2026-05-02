@@ -22,7 +22,7 @@ Added mobile user agent detection with direct navigation to a dedicated `/api/do
 For both file downloads and email attachments:
 ```javascript
 if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-  window.location.href = `/api/download/${bucket}/${encodedKey}/${encodeURIComponent(filename)}`;
+  window.location.href = `/api/download/${bucket}/${encodeURIComponent(encodedKey)}/${encodeURIComponent(filename)}`;
   return;
 }
 // Fall back to standard anchor.click() for desktop
