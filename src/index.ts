@@ -23,7 +23,7 @@ export default {
 	...explorer,
 	async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
 		const response = await explorer.fetch(
-			request,
+			withoutDownloadQuery(request),
 			env as unknown as Parameters<typeof explorer.fetch>[1],
 			context,
 		);
@@ -31,6 +31,18 @@ export default {
 		return withMobileDownloadHeaders(request, response);
 	},
 };
+
+function withoutDownloadQuery(request: Request): Request {
+	const url = new URL(request.url);
+
+	if (url.searchParams.get("download") !== "true") {
+		return request;
+	}
+
+	url.searchParams.delete("download");
+
+	return new Request(url, request);
+}
 
 function withMobileDownloadHeaders(request: Request, response: Response): Response {
 	const url = new URL(request.url);
