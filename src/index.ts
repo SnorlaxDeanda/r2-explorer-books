@@ -22,7 +22,11 @@ const explorer = R2Explorer({
 export default {
 	...explorer,
 	async fetch(request: Request, env: Env, context: ExecutionContext): Promise<Response> {
-		const response = await explorer.fetch(request, env, context);
+		const response = await explorer.fetch(
+			request,
+			env as unknown as Parameters<typeof explorer.fetch>[1],
+			context,
+		);
 
 		return withMobileDownloadHeaders(request, response);
 	},
