@@ -13,13 +13,21 @@ const r2ExplorerPath = path.join(__dirname, '../node_modules/r2-explorer');
 const filesToPatch = [
   path.join(r2ExplorerPath, 'dashboard/assets/EmailFilePage.ccbeefd3.js'),
   path.join(r2ExplorerPath, 'dashboard/assets/index.706c4d3e.js'),
+  path.join(r2ExplorerPath, 'dashboard/spa/assets/EmailFilePage.ccbeefd3.js'),
+  path.join(r2ExplorerPath, 'dashboard/spa/assets/index.706c4d3e.js'),
 ];
 
 // Original pattern: downloadAtt function
 const originalDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=document.createElement("a");t.download=e.filename,t.href=e.downloadUrl,document.body.appendChild(t),t.click(),document.body.removeChild(t)}';
 
 // Fixed pattern: mobile browsers are most reliable when navigating directly.
-const fixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
+const fixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const r=new URL(t,window.location.href),o=r.pathname.match(/^\\/api\\/buckets\\/([^/]+)\\/([^/]+)/);if(o){window.location.href=`/api/download/${o[1]}/${o[2]}/${encodeURIComponent(e.filename)}`;return}window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
+
+// Previous mobile fix navigated to the object API URL without a filename suffix.
+const directDownloadAttWithoutFileName = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=t+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
+
+// Previous mobile fix appended the filename to the R2 Explorer API route.
+const suffixDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=t+"/"+encodeURIComponent(e.filename)+"?download=true";return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
 
 // Previous mobile fix used another synthetic click, which mobile browsers may ignore.
 const legacyFixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloadUrl;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const n=document.createElement("a");n.href=t+"?download=true",n.setAttribute("download",e.filename),n.style.display="none",document.body.appendChild(n),n.click(),document.body.removeChild(n);return}const n=document.createElement("a");n.download=e.filename,n.href=t,document.body.appendChild(n),n.click(),document.body.removeChild(n)}';
@@ -28,7 +36,13 @@ const legacyFixedDownloadAtt = 'downloadAtt:e=>{console.log(e);const t=e.downloa
 const originalDownloadObject = 'downloadObject:function(){const u=document.createElement("a");u.download=this.prop.row.name,u.href=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`,document.body.appendChild(u),u.click(),document.body.removeChild(u)}';
 
 // Fixed pattern: mobile browsers are most reliable when navigating directly.
-const fixedDownloadObject = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=u+"?download=true";return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
+const fixedDownloadObject = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=`${this.mainStore.serverUrl}/api/download/${this.selectedBucket}/${encode(this.prop.row.key)}/${encodeURIComponent(this.prop.row.name)}`;return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
+
+// Previous mobile fix navigated to the object API URL without a filename suffix.
+const directDownloadObjectWithoutFileName = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=u+"?download=true";return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
+
+// Previous mobile fix appended the filename to the R2 Explorer API route.
+const suffixDownloadObject = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){window.location.href=u+"/"+encodeURIComponent(this.prop.row.name)+"?download=true";return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
 
 // Previous mobile fix used another synthetic click, which mobile browsers may ignore.
 const legacyFixedDownloadObject = 'downloadObject:function(){const u=`${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(this.prop.row.key)}`;if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)){const d=document.createElement("a");d.href=u+"?download=true",d.setAttribute("download",this.prop.row.name),d.style.display="none",document.body.appendChild(d),d.click(),document.body.removeChild(d);return}const d=document.createElement("a");d.download=this.prop.row.name,d.href=u,document.body.appendChild(d),d.click(),document.body.removeChild(d)}';
@@ -51,6 +65,16 @@ filesToPatch.forEach(filePath => {
       patched = true;
       patchCount++;
       console.log(`✅ Patched downloadAtt in ${path.basename(filePath)}`);
+    } else if (content.includes(directDownloadAttWithoutFileName)) {
+      content = content.replace(directDownloadAttWithoutFileName, fixedDownloadAtt);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadAtt in ${path.basename(filePath)}`);
+    } else if (content.includes(suffixDownloadAtt)) {
+      content = content.replace(suffixDownloadAtt, fixedDownloadAtt);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadAtt in ${path.basename(filePath)}`);
     } else if (content.includes(legacyFixedDownloadAtt)) {
       content = content.replace(legacyFixedDownloadAtt, fixedDownloadAtt);
       patched = true;
@@ -61,6 +85,16 @@ filesToPatch.forEach(filePath => {
     // Try patching downloadObject
     if (!content.includes(fixedDownloadObject) && content.includes(originalDownloadObject)) {
       content = content.replace(originalDownloadObject, fixedDownloadObject);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);
+    } else if (content.includes(directDownloadObjectWithoutFileName)) {
+      content = content.replace(directDownloadObjectWithoutFileName, fixedDownloadObject);
+      patched = true;
+      patchCount++;
+      console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);
+    } else if (content.includes(suffixDownloadObject)) {
+      content = content.replace(suffixDownloadObject, fixedDownloadObject);
       patched = true;
       patchCount++;
       console.log(`✅ Patched downloadObject in ${path.basename(filePath)}`);

@@ -4,12 +4,12 @@
 Downloads can be saved as `.html` on iOS/Android devices when the mobile browser follows the app route instead of treating the response as a file download.
 
 ## Solution
-Added mobile user agent detection with direct navigation to a `?download=true` URL, plus Worker response headers that force the object response to be saved as an attachment.
+Added mobile user agent detection with direct navigation to a dedicated `/api/download/.../<filename>` URL, plus Worker response headers that force the object response to be saved as an attachment.
 
 ## Changes Made
 
 ### Files Modified
-- `src/index.ts` - wraps the R2 Explorer fetch handler and adds download-safe headers for `?download=true` object responses
+- `src/index.ts` - adds a dedicated direct-download endpoint and download-safe response headers
 - `node_modules/r2-explorer/dashboard/assets/index.706c4d3e.js` - `downloadObject` function
 - `node_modules/r2-explorer/dashboard/assets/EmailFilePage.ccbeefd3.js` - `downloadAtt` function
 
@@ -22,7 +22,7 @@ Added mobile user agent detection with direct navigation to a `?download=true` U
 For both file downloads and email attachments:
 ```javascript
 if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-  window.location.href = downloadUrl + "?download=true";
+  window.location.href = `/api/download/${bucket}/${encodedKey}/${encodeURIComponent(filename)}`;
   return;
 }
 // Fall back to standard anchor.click() for desktop
