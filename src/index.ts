@@ -39,6 +39,12 @@ function withoutDownloadQuery(request: Request): Request {
 		return request;
 	}
 
+	const downloadRequest = parseBucketObjectDownloadPath(url.pathname);
+
+	if (downloadRequest) {
+		url.pathname = `/api/buckets/${downloadRequest.bucket}/${downloadRequest.encodedKey}`;
+	}
+
 	url.searchParams.delete("download");
 
 	return new Request(url, request);
@@ -55,7 +61,7 @@ function withMobileDownloadHeaders(request: Request, response: Response): Respon
 		return response;
 	}
 
-	const fileName = getBucketObjectFileName(url.pathname);
+	const fileName = parseBucketObjectDownloadPath(url.pathname)?.fileName;
 
 	if (!fileName) {
 		return response;
@@ -74,17 +80,22 @@ function withMobileDownloadHeaders(request: Request, response: Response): Respon
 	});
 }
 
-function getBucketObjectFileName(pathname: string): string | undefined {
-	const match = pathname.match(/^\/api\/buckets\/[^/]+\/([^/]+)$/);
+function parseBucketObjectDownloadPath(
+	pathname: string,
+): { bucket: string; encodedKey: string; fileName: string } | undefined {
+	const match = pathname.match(/^\/api\/buckets\/([^/]+)\/([^/]+)(?:\/([^/]+))?$/);
 
 	if (!match) {
 		return undefined;
 	}
 
-	const key = decodeR2ExplorerKey(match[1]);
-	const fileName = key.split("/").filter(Boolean).pop();
+	const [, bucket, encodedKey, encodedFileName] = match;
+	const key = decodeR2ExplorerKey(encodedKey);
+	const fileName = encodedFileName
+		? safeDecodeURIComponent(encodedFileName)
+		: key.split("/").filter(Boolean).pop();
 
-	return fileName || "download";
+	return { bucket, encodedKey, fileName: fileName || "download" };
 }
 
 function decodeR2ExplorerKey(key: string): string {
