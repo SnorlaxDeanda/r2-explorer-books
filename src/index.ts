@@ -74,7 +74,7 @@ async function handleDirectDownload(
 	}
 
 	if (request.method === "HEAD") {
-		const object = await bucket.head(downloadRequest.key);
+		const object = await headDownloadObject(bucket, downloadRequest.key);
 
 		if (object === null) {
 			return Response.json({ msg: "Object Not Found" }, { status: 404 });
@@ -85,7 +85,7 @@ async function handleDirectDownload(
 		return new Response(null, { headers });
 	}
 
-	const object = await bucket.get(downloadRequest.key);
+	const object = await getDownloadObject(bucket, downloadRequest.key);
 
 	if (object === null) {
 		return Response.json({ msg: "Object Not Found" }, { status: 404 });
@@ -266,6 +266,79 @@ function getR2Bucket(env: Env, bucketName: string): R2Bucket | undefined {
 	return bindings[bucketName] ?? bindings.bucket;
 }
 
+async function headDownloadObject(
+	bucket: R2Bucket,
+	key: string,
+): Promise<R2Object | null> {
+	for (const candidate of getDownloadKeyCandidates(key)) {
+		const object = await bucket.head(candidate);
+
+		if (object !== null) {
+			return object;
+		}
+	}
+
+	return null;
+}
+
+async function getDownloadObject(
+	bucket: R2Bucket,
+	key: string,
+): Promise<R2ObjectBody | null> {
+	for (const candidate of getDownloadKeyCandidates(key)) {
+		const object = await bucket.get(candidate);
+
+		if (object !== null) {
+			return object;
+		}
+	}
+
+	return null;
+}
+
+function getDownloadKeyCandidates(key: string): string[] {
+	const candidates = new Set<string>([key]);
+
+	for (const candidate of getMalformedDownloadKeyCandidates(key)) {
+		candidates.add(candidate);
+	}
+
+	return [...candidates];
+}
+
+function getMalformedDownloadKeyCandidates(key: string): string[] {
+	const parts = key.split("/");
+	const candidates: string[] = [];
+
+	for (let index = 1; index < parts.length - 1; index++) {
+		const suffix = parts.slice(index).join("/");
+
+		if (suffix !== key && looksLikeObjectKey(suffix)) {
+			candidates.push(suffix);
+			candidates.push(removeDuplicateExtension(suffix));
+		}
+	}
+
+	const prefix = parts.slice(0, Math.ceil(parts.length / 2)).join("/");
+
+	if (looksLikeObjectKey(prefix)) {
+		candidates.push(prefix);
+		candidates.push(removeDuplicateExtension(prefix));
+	}
+
+	candidates.push(removeDuplicateExtension(key));
+
+	return candidates.filter((candidate) => candidate && candidate !== key);
+}
+
+function looksLikeObjectKey(key: string): boolean {
+	return /\/[^/]+\.[A-Za-z0-9]{1,12}$/.test(key);
+}
+
+function removeDuplicateExtension(key: string): string {
+	return key.replace(/(\.[A-Za-z0-9]{1,12})\1$/i, "$1");
+}
+
 function isAuthorized(request: Request): boolean {
 	const authorization = request.headers.get("Authorization");
 
@@ -288,10 +361,14 @@ function isAuthorized(request: Request): boolean {
 }
 
 function applyDownloadHeaders(headers: Headers, fileName: string): void {
-	headers.set("Content-Disposition", buildAttachmentHeader(fileName));
+	headers.set("Content-Disposition", buildAttachmentHeader(normalizeDownloadFileName(fileName)));
 	headers.set("Content-Type", "application/octet-stream");
 	headers.set("X-Content-Type-Options", "nosniff");
 	headers.set("Cache-Control", "private, no-transform");
+}
+
+function normalizeDownloadFileName(fileName: string): string {
+	return removeDuplicateExtension(fileName);
 }
 
 function buildObjectDownloadHeaders(object: R2Object, fileName: string): Headers {
